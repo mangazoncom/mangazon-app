@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nexus Portal - App Dashboard</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Configure Tailwind -->
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+            animation: {
+              'gradient-x': 'gradient-x 15s ease infinite',
+            },
+            keyframes: {
+              'gradient-x': {
+                '0%, 100%': {
+                  'background-size': '200% 200%',
+                  'background-position': 'left center',
+                },
+                '50%': {
+                  'background-size': '200% 200%',
+                  'background-position': 'right center',
+                },
+              },
+            },
+          },
+        },
+      }
+    </script>
+    
+    <!-- Import Map for React modules -->
+    <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.2.0",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "lucide-react": "https://esm.sh/lucide-react@0.292.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/"
+  }
+}
+</script>
+
+    <!-- Babel for in-browser transpilation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+      html { scroll-behavior: smooth; }
+    </style>
+  <link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-slate-950 text-slate-100">
+    <div id="root"></div>
+
+    <!-- Application Code -->
+    <script type="text/babel" data-type="module">
+      import React, { useState, useMemo } from 'react';
+      import { createRoot } from 'react-dom/client';
+      import { 
+        Search, LayoutGrid, Languages, 
+        Gamepad2, FileJson, Palette, Rocket, CheckSquare, MessageSquare, Grid3x3, Cpu,
+        ExternalLink, Star, Zap, Github, Globe 
+      } from 'lucide-react';
+
+      // --- Types & Constants ---
+      
+      const AppCategory = {
+        ALL: 'All',
+        GAME: 'Game',
+        TOOL: 'Tool',
+        UTILITY: 'Utility',
+        AI: 'AI'
+      };
+
+      const APP_NAME = "Nexus Portal";
+
+      const CATEGORIES = [
+        AppCategory.ALL,
+        AppCategory.GAME,
+        AppCategory.TOOL,
+        AppCategory.UTILITY,
+        AppCategory.AI,
+      ];
+
+      const UI_TEXT = {
+        en: {
+          searchPlaceholder: "Search apps, games, tools...",
+          noAppsFound: "No apps found",
+          noAppsDesc: "Try adjusting your search or category filter.",
+          launchApp: "Launch",
+          footerRights: "Nexus Portal. All rights reserved.",
+          privacy: "Privacy",
+          terms: "Terms",
+          heroTitle: "Your Gateway to the Web",
+          heroDesc: "Discover a curated collection of powerful tools, fun games, and essential utilities. All in one place.",
+          new: "NEW",
+          hot: "HOT",
+          categories: {
+            [AppCategory.ALL]: "All",
+            [AppCategory.GAME]: "Game",
+            [AppCategory.TOOL]: "Tool",
+            [AppCategory.UTILITY]: "Utility",
+            [AppCategory.AI]: "AI"
+          }
+        },
+        ja: {
+          searchPlaceholder: "アプリ、ゲーム、ツールを検索...",
+          noAppsFound: "アプリが見つかりません",
+          noAppsDesc: "検索キーワードやカテゴリを変更してみてください。",
+          launchApp: "開く",
+          footerRights: "Nexus Portal. All rights reserved.",
+          privacy: "プライバシー",
+          terms: "利用規約",
+          heroTitle: "ウェブへの入り口",
+          heroDesc: "便利なツール、楽しいゲーム、必須ユーティリティの厳選コレクション。すべてをここに。",
+          new: "新着",
+          hot: "人気",
+          categories: {
+            [AppCategory.ALL]: "すべて",
+            [AppCategory.GAME]: "ゲーム",
+            [AppCategory.TOOL]: "ツール",
+            [AppCategory.UTILITY]: "ユーティリティ",
+            [AppCategory.AI]: "AI"
+          }
+        }
+      };
+
+      const MOCK_APPS = [
+        {
+          id: '1',
+          title: { en: 'Neon Racer', ja: 'ネオンレーサー' },
+          description: { 
+            en: 'A high-speed, cyberpunk-themed browser racing game.', 
+            ja: 'サイバーパンクな世界を駆け抜けるハイスピードレーシングゲーム。' 
+          },
+          category: AppCategory.GAME,
+          url: '#',
+          icon: Gamepad2,
+          color: 'from-fuchsia-500 to-purple-600',
+          isPopular: true
+        },
+        {
+          id: '2',
+          title: { en: 'JSON Formatter', ja: 'JSONフォーマッター' },
+          description: { 
+            en: 'Beautify and validate JSON data instantly.', 
+            ja: 'JSONデータを瞬時に整形・検証する開発者向けツール。' 
+          },
+          category: AppCategory.TOOL,
+          url: '#',
+          icon: FileJson,
+          color: 'from-blue-500 to-cyan-500'
+        },
+        {
+          id: '3',
+          title: { en: 'Pixel Painter', ja: 'ピクセルペインター' },
+          description: { 
+            en: 'Create pixel art directly in your browser.', 
+            ja: 'ブラウザで手軽にドット絵を作成できるお絵かきツール。' 
+          },
+          category: AppCategory.TOOL,
+          url: '#',
+          icon: Palette,
+          color: 'from-orange-400 to-pink-500'
+        },
+        {
+          id: '4',
+          title: { en: 'Space Invaders', ja: 'スペースインベーダー' },
+          description: { 
+            en: 'Classic arcade action with modern physics.', 
+            ja: '現代的な物理演算を取り入れたクラシックアーケードゲーム。' 
+          },
+          category: AppCategory.GAME,
+          url: '#',
+          icon: Rocket,
+          color: 'from-indigo-500 to-violet-600',
+          isNew: true
+        },
+        {
+          id: '5',
+          title: { en: 'Task Master', ja: 'タスクマスター' },
+          description: { 
+            en: 'A simple, local-storage based Kanban board.', 
+            ja: 'ローカル保存に対応したシンプルで使いやすいカンバンボード。' 
+          },
+          category: AppCategory.UTILITY,
+          url: '#',
+          icon: CheckSquare,
+          color: 'from-emerald-400 to-teal-500'
+        },
+        {
+          id: '6',
+          title: { en: 'AI Chat Client', ja: 'AIチャット' },
+          description: { 
+            en: 'Interface for chatting with LLMs.', 
+            ja: '最新の大規模言語モデルと対話できるチャットインターフェース。' 
+          },
+          category: AppCategory.AI,
+          url: '#',
+          icon: MessageSquare,
+          color: 'from-rose-500 to-red-600',
+          isNew: true
+        },
+        {
+          id: '7',
+          title: { en: 'Color Palette Gen', ja: 'カラーパレット生成' },
+          description: { 
+            en: 'Generate beautiful color schemes for your projects.', 
+            ja: 'プロジェクトに最適な美しい配色パターンを自動生成します。' 
+          },
+          category: AppCategory.TOOL,
+          url: '#',
+          icon: Palette,
+          color: 'from-amber-400 to-orange-500'
+        },
+        {
+          id: '8',
+          title: { en: 'Sudoku Solver', ja: '数独ソルバー' },
+          description: { 
+            en: 'Solve any Sudoku puzzle instantly.', 
+            ja: 'あらゆるナンプレ問題を一瞬で解くことができる便利ツール。' 
+          },
+          category: AppCategory.GAME,
+          url: '#',
+          icon: Grid3x3,
+          color: 'from-sky-400 to-blue-500'
+        },
+        {
+          id: '9',
+          title: { en: 'System Monitor', ja: 'システムモニター' },
+          description: { 
+            en: 'Check your browser capabilities and performance.', 
+            ja: 'ブラウザの機能やパフォーマンスをチェックするユーティリティ。' 
+          },
+          category: AppCategory.UTILITY,
+          url: '#',
+          icon: Cpu,
+          color: 'from-slate-500 to-slate-700'
+        },
+      ];
+
+      // --- Components ---
+
+      const AppCard = ({ app, language }) => {
+        const t = UI_TEXT[language];
+        const Icon = app.icon;
+
+        const getCategoryColor = (cat) => {
+          switch (cat) {
+            case AppCategory.GAME: return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+            case AppCategory.TOOL: return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+            case AppCategory.AI: return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+            default: return 'bg-slate-500/20 text-slate-300 border-slate-500/30';
+          }
+        };
+
+        return (
+          <a 
+            href={app.url}
+            className="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-700/50 bg-slate-800/40 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-slate-500/50 hover:shadow-2xl hover:shadow-indigo-500/10"
+          >
+            {/* Icon Header Section */}
+            <div className="relative h-40 overflow-hidden bg-slate-900/50 flex items-center justify-center">
+              {/* Background Glow Effect */}
+              <div className={`absolute inset-0 opacity-20 bg-gradient-to-br ${app.color} transition-opacity duration-500 group-hover:opacity-30`} />
+              
+              {/* Main Icon */}
+              <div className={`relative z-10 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br ${app.color} text-white shadow-xl transform transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3`}>
+                <Icon size={40} />
+              </div>
+              
+              {/* Badges */}
+              <div className="absolute top-3 left-3 z-20 flex gap-2">
+                <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getCategoryColor(app.category)}`}>
+                  {t.categories[app.category]}
+                </span>
+              </div>
+
+              <div className="absolute top-3 right-3 z-20 flex gap-2">
+                {app.isNew && (
+                  <span className="flex items-center gap-1 bg-amber-500 text-slate-900 px-2 py-1 rounded-full text-xs font-bold shadow-lg">
+                    <Zap size={12} fill="currentColor" /> {t.new}
+                  </span>
+                )}
+                {app.isPopular && (
+                  <span className="flex items-center gap-1 bg-rose-500 text-white px-2 py-1 rounded-full text-xs font-bold shadow-lg">
+                    <Star size={12} fill="currentColor" /> {t.hot}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Content Section */}
+            <div className="flex flex-1 flex-col p-5">
+              <h3 className="text-xl font-bold text-slate-100 mb-2 group-hover:text-indigo-400 transition-colors">
+                {app.title[language]}
+              </h3>
+              <p className="text-slate-400 text-sm mb-4 line-clamp-2 flex-1">
+                {app.description[language]}
+              </p>
+              
+              <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-700/50">
+                <span className="text-xs text-slate-500 font-medium group-hover:text-slate-400 transition-colors">
+                  {t.launchApp}
+                </span>
+                <div className="bg-slate-700/50 p-2 rounded-full text-slate-300 group-hover:bg-indigo-500 group-hover:text-white transition-all duration-300">
+                  <ExternalLink size={16} />
+                </div>
+              </div>
+            </div>
+          </a>
+        );
+      };
+
+      const CategoryFilter = ({ selectedCategory, setSelectedCategory, language }) => {
+        const t = UI_TEXT[language];
+
+        return (
+          <div className="flex flex-wrap items-center justify-center gap-2 py-8">
+            {CATEGORIES.map((category) => (
+              <button
+                key={category}
+                onClick={() => setSelectedCategory(category)}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 
+                  ${
+                    selectedCategory === category
+                      ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 ring-1 ring-indigo-400'
+                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200 ring-1 ring-slate-700'
+                  }
+                `}
+              >
+                {t.categories[category]}
+              </button>
+            ))}
+          </div>
+        );
+      };
+
+      const Header = ({ searchQuery, setSearchQuery, language, setLanguage }) => {
+        const t = UI_TEXT[language];
+
+        const toggleLanguage = () => {
+          setLanguage(language === 'en' ? 'ja' : 'en');
+        };
+
+        return (
+          <header className="sticky top-0 z-50 w-full border-b border-slate-700/50 bg-slate-900/80 backdrop-blur-xl">
+            <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
+              {/* Logo */}
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/20">
+                  <LayoutGrid size={20} />
+                </div>
+                <span className="text-xl font-bold tracking-tight text-white hidden sm:block">
+                  {APP_NAME}
+                </span>
+              </div>
+
+              {/* Search Bar - Desktop */}
+              <div className="hidden md:flex flex-1 items-center justify-center px-8">
+                <div className="relative w-full max-w-md">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                    <Search className="h-4 w-4 text-slate-400" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder={t.searchPlaceholder}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full rounded-full border border-slate-700 bg-slate-800/50 py-2 pl-10 pr-4 text-sm text-slate-200 placeholder-slate-400 transition-all focus:border-indigo-500 focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Right Section: Language Toggle & Profile */}
+              <div className="flex items-center gap-3">
+                 <button 
+                   onClick={toggleLanguage}
+                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:border-slate-500 transition-colors text-sm font-medium"
+                 >
+                   <Languages size={16} />
+                   <span>{language === 'en' ? 'EN' : 'JP'}</span>
+                 </button>
+                 
+                 <div className="h-8 w-8 rounded-full bg-slate-700 border border-slate-600"></div>
+              </div>
+            </div>
+            
+            {/* Mobile Search Bar */}
+            <div className="md:hidden border-t border-slate-700/50 p-4">
+              <div className="relative">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                    <Search className="h-4 w-4 text-slate-400" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder={t.searchPlaceholder}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-800/50 py-2 pl-10 pr-4 text-sm text-slate-200 focus:border-indigo-500 focus:bg-slate-800 focus:outline-none"
+                  />
+              </div>
+            </div>
+          </header>
+        );
+      };
+
+      const App = () => {
+        const [searchQuery, setSearchQuery] = useState('');
+        const [selectedCategory, setSelectedCategory] = useState(AppCategory.ALL);
+        const [language, setLanguage] = useState('ja');
+
+        const t = UI_TEXT[language];
+
+        const filteredApps = useMemo(() => {
+          return MOCK_APPS.filter((app) => {
+            const matchesCategory = selectedCategory === AppCategory.ALL || app.category === selectedCategory;
+            
+            const title = app.title[language].toLowerCase();
+            const desc = app.description[language].toLowerCase();
+            const query = searchQuery.toLowerCase();
+
+            const matchesSearch = title.includes(query) || desc.includes(query);
+            
+            return matchesCategory && matchesSearch;
+          });
+        }, [searchQuery, selectedCategory, language]);
+
+        return (
+          <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-indigo-500/30">
+            <div className="fixed inset-0 z-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
+            <div className="fixed inset-0 z-0 bg-gradient-to-tr from-slate-950 via-slate-900 to-indigo-950/20 pointer-events-none"></div>
+
+            <div className="relative z-10 flex flex-col min-h-screen">
+              <Header 
+                searchQuery={searchQuery} 
+                setSearchQuery={setSearchQuery} 
+                language={language}
+                setLanguage={setLanguage}
+              />
+
+              <main className="flex-1 container mx-auto px-4 sm:px-6 py-8">
+                
+                {/* Hero Section */}
+                <div className="text-center py-12 md:py-20 max-w-3xl mx-auto space-y-6">
+                  <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 animate-gradient-x">
+                    {t.heroTitle}
+                  </h1>
+                  <p className="text-lg md:text-xl text-slate-400">
+                    {t.heroDesc}
+                  </p>
+                </div>
+
+                <CategoryFilter 
+                  selectedCategory={selectedCategory} 
+                  setSelectedCategory={setSelectedCategory} 
+                  language={language}
+                />
+
+                {/* Grid Layout */}
+                <div className="mt-8">
+                  {filteredApps.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                      {filteredApps.map((app) => (
+                        <AppCard key={app.id} app={app} language={language} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-20">
+                      <div className="inline-block p-4 rounded-full bg-slate-800/50 mb-4">
+                        <Globe className="h-8 w-8 text-slate-500" />
+                      </div>
+                      <h3 className="text-xl font-medium text-slate-300">{t.noAppsFound}</h3>
+                      <p className="text-slate-500 mt-2">{t.noAppsDesc}</p>
+                    </div>
+                  )}
+                </div>
+              </main>
+
+              <footer className="border-t border-slate-800 bg-slate-900/50 backdrop-blur-sm py-8 mt-12">
+                <div className="container mx-auto px-4 text-center">
+                  <p className="text-slate-500 text-sm mb-4">
+                    &copy; {new Date().getFullYear()} {t.footerRights}
+                  </p>
+                  <div className="flex justify-center gap-6">
+                    <a href="#" className="text-slate-500 hover:text-white transition-colors">
+                      <Github size={20} />
+                    </a>
+                    <a href="#" className="text-slate-500 hover:text-white transition-colors">
+                      {t.privacy}
+                    </a>
+                    <a href="#" className="text-slate-500 hover:text-white transition-colors">
+                      {t.terms}
+                    </a>
+                  </div>
+                </div>
+              </footer>
+            </div>
+          </div>
+        );
+      };
+
+      const root = createRoot(document.getElementById('root'));
+      root.render(<App />);
+    </script>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
