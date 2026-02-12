@@ -72,7 +72,7 @@ export const MOCK_APPS: AppItem[] = [
       ja: 'サイバーパンクな世界を駆け抜けるハイスピードレーシングゲーム。' 
     },
     category: AppCategory.GAME,
-    url: '#',
+    url: '/gemini-quiz-master/',
     icon: Gamepad2,
     color: 'from-fuchsia-500 to-purple-600',
     isPopular: true
