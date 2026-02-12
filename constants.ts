@@ -66,13 +66,13 @@ export const UI_TEXT = {
 export const MOCK_APPS: AppItem[] = [
   {
     id: '1',
-    title: { en: 'Neon Racer', ja: 'ネオンレーサー' },
+    title: { en: 'gemini-quiz-master', ja: 'ジェミニクイズマスター' },
     description: { 
-      en: 'A high-speed, cyberpunk-themed browser racing game.', 
-      ja: 'サイバーパンクな世界を駆け抜けるハイスピードレーシングゲーム。' 
+      en: 'quiz game.', 
+      ja: 'クイズゲーム。' 
     },
     category: AppCategory.GAME,
-    url: '/gemini-quiz-master/',
+    url: './gemini-quiz-master/',
     icon: Gamepad2,
     color: 'from-fuchsia-500 to-purple-600',
     isPopular: true
