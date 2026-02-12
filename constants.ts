@@ -72,7 +72,7 @@ export const MOCK_APPS: AppItem[] = [
       ja: 'クイズゲーム。' 
     },
     category: AppCategory.GAME,
-    url: './gemini-quiz-master/',
+    url: 'https://mangazon.jp/gemini-quiz-master/',
     icon: Gamepad2,
     color: 'from-fuchsia-500 to-purple-600',
     isPopular: true
