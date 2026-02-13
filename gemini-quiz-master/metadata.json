@@ -1,0 +1,5 @@
+{
+  "name": "Gemini Quiz Master",
+  "description": "An AI-powered quiz application where users set the topic and difficulty. Features real-time AI assistance, difficulty adjustment, and history tracking.",
+  "requestFramePermissions": []
+}
