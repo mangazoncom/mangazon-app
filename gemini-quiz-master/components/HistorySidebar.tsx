@@ -1,53 +1,53 @@
 import React from 'react';
-import { QuizHistoryItem, Difficulty } from '../types';
-import { DIFFICULTY_LABELS } from '../constants';
-import { Clock, BookOpen, Star } from 'lucide-react';
+import { QuizHistoryItem } from '../types';
+import { Clock, Trophy, ChevronRight, History } from 'lucide-react';
 
 interface HistorySidebarProps {
   history: QuizHistoryItem[];
-  onSelectTopic: (topic: string) => void;
+  onSelectHistory: (item: QuizHistoryItem) => void;
 }
 
-const HistorySidebar: React.FC<HistorySidebarProps> = ({ history, onSelectTopic }) => {
+export const HistorySidebar: React.FC<HistorySidebarProps> = ({ history, onSelectHistory }) => {
   if (history.length === 0) {
     return (
-      <div className="text-gray-400 text-sm text-center py-4">
-        履歴はまだありません
+      <div className="text-slate-500 text-center p-8 flex flex-col items-center justify-center h-48 border-2 border-dashed border-slate-800 rounded-2xl mx-2">
+        <History className="w-8 h-8 mb-2 opacity-50" />
+        <p className="text-sm">履歴はありません</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
-      {history.map((item, idx) => (
-        <div 
-          key={idx}
-          onClick={() => onSelectTopic(item.topic)}
-          className="bg-slate-800 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 cursor-pointer transition-colors group"
+    <div className="space-y-3">
+      {history.map((item, index) => (
+        <button
+          key={item.id}
+          onClick={() => onSelectHistory(item)}
+          className="w-full text-left bg-slate-800/40 hover:bg-slate-800 transition-all p-4 rounded-xl border border-slate-800 hover:border-indigo-500/30 group relative overflow-hidden"
         >
-          <div className="flex justify-between items-start mb-1">
-            <h4 className="font-bold text-slate-200 group-hover:text-indigo-400 transition-colors truncate w-full">
-              {item.topic}
-            </h4>
+          {/* Hover effect gradient */}
+          <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/0 via-indigo-500/5 to-indigo-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+
+          <div className="flex justify-between items-start mb-2 relative z-10">
+            <span className="font-semibold text-slate-200 truncate pr-2 group-hover:text-indigo-300 transition-colors">
+              {item.config.topic}
+            </span>
+            <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-indigo-400 transition-colors transform group-hover:translate-x-1" />
           </div>
-          <div className="flex flex-wrap gap-2 text-xs text-slate-400">
-            <span className="flex items-center gap-1 bg-slate-700 px-2 py-0.5 rounded">
-              <Star size={10} />
-              Lv.{item.difficulty}
+          <div className="flex items-center space-x-4 text-xs text-slate-400 relative z-10">
+            <span className="flex items-center">
+              <Trophy className={`w-3 h-3 mr-1.5 ${item.score === item.config.questionCount ? 'text-yellow-500' : 'text-slate-500'}`} />
+              <span className={item.score === item.config.questionCount ? 'text-yellow-500 font-bold' : ''}>
+                {item.score}/{item.config.questionCount}
+              </span>
             </span>
-            <span className="flex items-center gap-1 bg-slate-700 px-2 py-0.5 rounded">
-              <BookOpen size={10} />
-              {item.score}/{item.total}
-            </span>
-            <span className="flex items-center gap-1 ml-auto">
-              <Clock size={10} />
+            <span className="flex items-center text-slate-500">
+              <Clock className="w-3 h-3 mr-1.5" />
               {new Date(item.timestamp).toLocaleDateString()}
             </span>
           </div>
-        </div>
+        </button>
       ))}
     </div>
   );
 };
-
-export default HistorySidebar;

@@ -1,5 +1,5 @@
 {
   "name": "Gemini Quiz Master",
-  "description": "An AI-powered quiz application where users set the topic and difficulty. Features real-time AI assistance, difficulty adjustment, and history tracking.",
+  "description": "A dynamic quiz application powered by Google Gemini. Users can generate quizzes on any topic, adjust difficulty, and ask the AI for help during the game.",
   "requestFramePermissions": []
 }

@@ -1,17 +1,15 @@
-import { Difficulty } from './types';
+import { DifficultyLevel } from './types';
 
-export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
-  [Difficulty.VERY_EASY]: '激アマ（誰でも解ける）',
-  [Difficulty.EASY]: '初級（基礎知識）',
-  [Difficulty.NORMAL]: '中級（一般的）',
-  [Difficulty.HARD]: '上級（専門的）',
-  [Difficulty.VERY_HARD]: '激ヤバ（識者も悩む）',
+export const DIFFICULTY_LABELS: Record<DifficultyLevel, string> = {
+  [DifficultyLevel.VERY_EASY]: "激アマ簡単 (誰でも解ける)",
+  [DifficultyLevel.EASY]: "簡単 (一般常識)",
+  [DifficultyLevel.NORMAL]: "普通 (平均レベル)",
+  [DifficultyLevel.HARD]: "難しい (専門家レベル)",
+  [DifficultyLevel.VERY_HARD]: "激ヤバ高難度 (識者も唸る)",
 };
 
-export const DEFAULT_CONFIG = {
-  count: 5,
-  difficulty: Difficulty.NORMAL,
-};
+export const DEFAULT_QUESTION_COUNT = 5;
+export const MAX_QUESTION_COUNT = 30;
+export const MIN_QUESTION_COUNT = 3;
 
-export const MAX_QUESTIONS = 30;
-export const MIN_QUESTIONS = 1;
+export const HISTORY_STORAGE_KEY = 'gemini-quiz-history';

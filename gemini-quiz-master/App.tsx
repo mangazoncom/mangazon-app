@@ -1,456 +1,353 @@
 import React, { useState, useEffect } from 'react';
-import { QuizConfig, Question, Difficulty, AppState, QuizHistoryItem, GameMode, Player } from './types';
+import { DifficultyLevel, QuizConfig, QuizQuestion, ViewState, QuizHistoryItem } from './types';
+import { DIFFICULTY_LABELS, DEFAULT_QUESTION_COUNT, MAX_QUESTION_COUNT, MIN_QUESTION_COUNT, HISTORY_STORAGE_KEY } from './constants';
 import { generateQuiz } from './services/geminiService';
-import { DEFAULT_CONFIG, DIFFICULTY_LABELS, MAX_QUESTIONS } from './constants';
-import QuizCard from './components/QuizCard';
-import ChatAssistant from './components/ChatAssistant';
-import HistorySidebar from './components/HistorySidebar';
-import Lobby from './components/Lobby';
-import LiveLeaderboard from './components/LiveLeaderboard';
-import { useMultiplayer } from './hooks/useMultiplayer';
-import { BrainCircuit, Loader2, Trophy, RotateCcw, AlertCircle, Wifi, WifiOff, Users, User } from 'lucide-react';
+import { QuizGame } from './components/QuizGame';
+import { HistorySidebar } from './components/HistorySidebar';
+import { BrainCircuit, Loader2, Sparkles, AlertCircle, RotateCcw, Menu, X, Settings2, Play } from 'lucide-react';
 
-const App: React.FC = () => {
-  const [appState, setAppState] = useState<AppState>('menu');
-  const [gameMode, setGameMode] = useState<GameMode>('single');
-  const [config, setConfig] = useState<QuizConfig>({ topic: '', ...DEFAULT_CONFIG });
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [currentQIndex, setCurrentQIndex] = useState(0);
+export default function App() {
+  // State
+  const [view, setView] = useState<ViewState>('setup');
+  const [config, setConfig] = useState<QuizConfig>({
+    topic: '',
+    difficulty: DifficultyLevel.NORMAL,
+    questionCount: DEFAULT_QUESTION_COUNT
+  });
+  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [score, setScore] = useState(0);
-  const [loadingError, setLoadingError] = useState('');
   const [history, setHistory] = useState<QuizHistoryItem[]>([]);
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Multiplayer State
-  const [userName, setUserName] = useState('');
-  const [inputRoomId, setInputRoomId] = useState('');
-  const { connect, players, myId, startGame, updateProgress, gameStartData, roomId } = useMultiplayer();
-
+  // Load history on mount
   useEffect(() => {
-    // Load history
-    const saved = localStorage.getItem('quiz_history');
+    const saved = localStorage.getItem(HISTORY_STORAGE_KEY);
     if (saved) {
       try {
         setHistory(JSON.parse(saved));
       } catch (e) {
-        console.error("Failed to parse history");
+        console.error("Failed to parse history", e);
       }
     }
-    // Load Name
-    const savedName = localStorage.getItem('player_name');
-    if (savedName) setUserName(savedName);
-
-    // Check URL Hash for Room ID (e.g., #room=ABCD)
-    const hash = window.location.hash;
-    if (hash.startsWith('#room=')) {
-      const idFromUrl = hash.replace('#room=', '');
-      if (idFromUrl) {
-        setInputRoomId(idFromUrl);
-      }
-    }
-
-    // Online status listeners
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
   }, []);
 
-  // Save Name
-  const handleNameChange = (name: string) => {
-    setUserName(name);
-    localStorage.setItem('player_name', name);
-  };
-
-  // Handle Game Start Data (Guest)
-  useEffect(() => {
-    if (gameStartData && appState === 'lobby') {
-      setQuestions(gameStartData.questions);
-      setConfig(gameStartData.config);
-      setCurrentQIndex(0);
-      setScore(0);
-      setAppState('quiz');
-    }
-  }, [gameStartData, appState]);
-
-  const saveHistory = (newScore: number) => {
+  const saveToHistory = (newConfig: QuizConfig, finalScore: number) => {
     const newItem: QuizHistoryItem = {
+      id: Date.now().toString(),
       timestamp: Date.now(),
-      topic: config.topic,
-      difficulty: config.difficulty,
-      score: newScore,
-      total: questions.length,
+      config: newConfig,
+      score: finalScore
     };
-    const newHistory = [newItem, ...history].slice(0, 20);
+    const newHistory = [newItem, ...history].slice(0, 50); // Keep last 50
     setHistory(newHistory);
-    localStorage.setItem('quiz_history', JSON.stringify(newHistory));
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(newHistory));
   };
 
-  const startSingleQuiz = async () => {
-    if (!config.topic.trim()) return;
-    setAppState('loading');
-    setLoadingError('');
-    setIsChatOpen(false);
+  const startQuiz = async (overrideConfig?: QuizConfig) => {
+    const activeConfig = overrideConfig || config;
+    
+    if (!activeConfig.topic.trim()) {
+      setError("お題を入力してください");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setConfig(activeConfig); // Update state if overridden
 
     try {
-      const generatedQuestions = await generateQuiz(config);
-      setQuestions(generatedQuestions);
-      setCurrentQIndex(0);
-      setScore(0);
-      setAppState('quiz');
-    } catch (error) {
-      setLoadingError('クイズの生成に失敗しました。APIキーを確認してください。');
-      setAppState('setup');
-    }
-  };
-
-  const startMultiplayerQuiz = async () => {
-    if (!config.topic.trim()) return;
-    setAppState('loading'); // Show loading on Host
-    setLoadingError('');
-    
-    try {
-      const generatedQuestions = await generateQuiz(config);
-      setQuestions(generatedQuestions);
-      setCurrentQIndex(0);
-      setScore(0);
-      startGame(generatedQuestions, config);
-      setAppState('quiz');
-    } catch (error) {
-      setLoadingError('クイズの生成に失敗しました。APIキーを確認してください。');
-      setAppState('lobby');
-    }
-  };
-
-  const handleCreateRoom = () => {
-    if (!userName.trim()) return;
-    const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    connect(newRoomId, userName, true);
-    setGameMode('multi');
-    setAppState('lobby');
-    // Clear hash to clean up URL
-    window.location.hash = '';
-  };
-
-  const handleJoinRoom = () => {
-    if (!userName.trim() || !inputRoomId.trim()) return;
-    connect(inputRoomId.toUpperCase(), userName, false);
-    setGameMode('multi');
-    setAppState('lobby');
-  };
-
-  const handleAnswer = (isCorrect: boolean) => {
-    const newScore = isCorrect ? score + 1 : score;
-    setScore(newScore);
-
-    const isFinished = currentQIndex >= questions.length - 1;
-    
-    // Send progress in Multiplayer
-    if (gameMode === 'multi') {
-      // +1 to index to indicate completed count or next index
-      updateProgress(newScore, currentQIndex + 1, isFinished);
-    }
-    
-    if (!isFinished) {
-      setTimeout(() => setCurrentQIndex(i => i + 1), 1000);
-    } else {
-      setTimeout(() => {
-        saveHistory(newScore);
-        setAppState('result');
-      }, 1000);
-    }
-  };
-
-  const resetApp = () => {
-    // Determine where to go back
-    if (gameMode === 'multi') {
-      // In multi, going back usually means leaving room or back to lobby (if supported)
-      // For simplicity, reload or back to menu
-      window.location.reload(); 
-    } else {
-      setAppState('menu');
-      setConfig(prev => ({ ...prev, topic: '' }));
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 text-slate-100 flex flex-col font-sans relative overflow-hidden">
+      const generatedQuestions = await generateQuiz(activeConfig);
+      if (generatedQuestions.length === 0) throw new Error("問題の生成に失敗しました");
       
-      {/* Network Status */}
-      <div className={`absolute top-4 right-4 flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold z-50 ${isOnline ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
-        {isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}
-        {isOnline ? 'ONLINE' : 'OFFLINE'}
-      </div>
+      setQuestions(generatedQuestions);
+      setView('quiz');
+    } catch (e) {
+      setError("クイズの生成中にエラーが発生しました。ネットワーク接続を確認してください。");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-      <main className={`flex-1 flex flex-col items-center justify-center p-4 transition-all duration-300 ${isChatOpen ? 'mr-0 sm:mr-96' : ''}`}>
+  const handleFinish = (finalScore: number) => {
+    setScore(finalScore);
+    saveToHistory(config, finalScore);
+    setView('result');
+  };
+
+  const handleReset = () => {
+    setScore(0);
+    setQuestions([]);
+    setView('setup');
+  };
+
+  // Setup View Component
+  const SetupView = () => (
+    <div className="w-full max-w-xl mx-auto p-4 md:p-6 animate-fade-in relative z-10">
+      <div className="bg-slate-900/60 backdrop-blur-xl rounded-[2rem] p-8 md:p-10 border border-slate-700/50 shadow-2xl relative overflow-hidden group">
         
-        {/* MENU SCREEN */}
-        {appState === 'menu' && (
-          <div className="w-full max-w-md animate-fade-in text-center space-y-8">
-            <div className="mb-8">
-               <div className="flex justify-center mb-4 text-indigo-400">
-                 <BrainCircuit size={64} />
-               </div>
-               <h1 className="text-4xl font-bold tracking-tight text-white mb-2">Gemini Quiz Master</h1>
-               <p className="text-slate-400">AIが生成する無限のクイズに挑戦しよう</p>
+        {/* Decorative elements inside card */}
+        <div className="absolute top-0 right-0 p-8 opacity-20 group-hover:opacity-30 transition-opacity pointer-events-none">
+          <Settings2 className="w-32 h-32 text-indigo-500 transform rotate-12" />
+        </div>
+
+        <div className="relative z-10">
+          <div className="mb-10 text-left">
+            <div className="inline-flex items-center space-x-2 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1 rounded-full mb-4">
+              <Sparkles className="w-4 h-4 text-indigo-400" />
+              <span className="text-xs font-semibold text-indigo-300 tracking-wide uppercase">AI Powered Quiz</span>
+            </div>
+            <h1 className="text-4xl md:text-5xl font-bold text-white mb-3 font-heading tracking-tight">
+              Quiz Master
+            </h1>
+            <p className="text-slate-400 text-lg">
+              どんなお題でも、AIが即座にクイズを作成。
+            </p>
+          </div>
+
+          <div className="space-y-8">
+            {/* Topic Input */}
+            <div className="space-y-3">
+              <label className="block text-slate-300 text-sm font-semibold tracking-wide uppercase">
+                クイズのお題
+              </label>
+              <div className="relative group/input">
+                <input 
+                  type="text" 
+                  value={config.topic}
+                  onChange={(e) => setConfig({ ...config, topic: e.target.value })}
+                  placeholder="例: 日本の城, 90年代J-POP, 量子力学..."
+                  className="w-full bg-slate-800/50 border border-slate-600 rounded-2xl p-4 pl-5 text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none text-lg shadow-inner"
+                />
+                <div className="absolute inset-0 rounded-2xl bg-indigo-500/5 opacity-0 group-hover/input:opacity-100 pointer-events-none transition-opacity"></div>
+              </div>
             </div>
 
+            {/* Difficulty Slider */}
             <div className="space-y-4">
-               <div>
-                  <label className="block text-left text-sm font-medium text-slate-400 mb-1 ml-1">プレイヤー名</label>
-                  <input
-                    type="text"
-                    value={userName}
-                    onChange={(e) => handleNameChange(e.target.value)}
-                    placeholder="名前を入力..."
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 text-center text-lg mb-4"
-                  />
-               </div>
-
-               <button 
-                 onClick={() => {
-                    if(!userName.trim()) return alert("名前を入力してください");
-                    setGameMode('single');
-                    setAppState('setup');
-                 }}
-                 className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-all hover:scale-[1.02]"
-               >
-                 <User size={24} className="text-indigo-400" />
-                 <div>
-                   <div className="text-lg">シングルプレイ</div>
-                   <div className="text-xs text-slate-400 font-normal">一人でじっくり挑戦</div>
-                 </div>
-               </button>
-
-               <div className="grid grid-cols-2 gap-4">
-                 <button 
-                   onClick={() => {
-                     if(!userName.trim()) return alert("名前を入力してください");
-                     handleCreateRoom();
-                   }}
-                   className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.02] shadow-lg shadow-indigo-500/20"
-                 >
-                   <Users size={24} />
-                   <span className="text-sm">ルーム作成</span>
-                 </button>
-                 
-                 <div className="relative">
-                   <input 
-                      type="text" 
-                      placeholder="ID入力"
-                      value={inputRoomId}
-                      onChange={(e) => setInputRoomId(e.target.value)}
-                      className="absolute inset-x-0 bottom-full mb-2 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-center text-sm focus:outline-none focus:border-indigo-500 font-mono tracking-wider"
-                   />
-                   <button 
-                     onClick={() => {
-                       if(!userName.trim()) return alert("名前を入力してください");
-                       handleJoinRoom();
-                     }}
-                     className="w-full h-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold py-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.02]"
-                   >
-                     <Users size={24} className="text-green-400" />
-                     <span className="text-sm">参加する</span>
-                   </button>
-                 </div>
-               </div>
-            </div>
-          </div>
-        )}
-
-        {/* SINGLE PLAYER SETUP */}
-        {appState === 'setup' && (
-          <div className="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
-            <div className="lg:col-span-2 bg-slate-800/50 backdrop-blur-md p-8 rounded-2xl border border-slate-700 shadow-xl">
-              <button onClick={() => setAppState('menu')} className="text-sm text-slate-400 mb-4 hover:text-white">← 戻る</button>
-              <div className="flex items-center gap-3 mb-6 text-indigo-400">
-                <BrainCircuit size={32} />
-                <h1 className="text-3xl font-bold text-white">クイズ設定</h1>
+              <div className="flex justify-between items-end">
+                <label className="text-slate-300 text-sm font-semibold tracking-wide uppercase">難易度</label>
+                <div className="text-right">
+                  <span className="block text-indigo-400 font-bold text-lg">
+                    {DIFFICULTY_LABELS[config.difficulty].split(' ')[0]}
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    {DIFFICULTY_LABELS[config.difficulty].split(' ')[1]}
+                  </span>
+                </div>
               </div>
-              
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">クイズのお題</label>
-                  <input
-                    type="text"
-                    value={config.topic}
-                    onChange={(e) => setConfig({ ...config, topic: e.target.value })}
-                    placeholder="例: 日本の歴史, ポケットモンスター..."
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-5 py-4 text-lg text-white focus:outline-none focus:border-indigo-500"
-                    autoFocus
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
-                      難易度: <span className="text-indigo-400">{DIFFICULTY_LABELS[config.difficulty]}</span>
-                    </label>
-                    <input 
-                      type="range" min="1" max="5" step="1"
-                      value={config.difficulty}
-                      onChange={(e) => setConfig({ ...config, difficulty: parseInt(e.target.value) as Difficulty })}
-                      className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
-                      問題数 (1-{MAX_QUESTIONS})
-                    </label>
-                    <input 
-                      type="number" 
-                      min="1" 
-                      max={MAX_QUESTIONS}
-                      value={config.count}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value);
-                        if (!isNaN(val)) setConfig({ ...config, count: Math.min(Math.max(val, 1), MAX_QUESTIONS) });
-                      }}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-lg text-white focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                </div>
-
-                {loadingError && (
-                  <div className="bg-red-500/10 border border-red-500/50 text-red-200 p-4 rounded-lg flex items-start gap-3 text-sm">
-                    <AlertCircle size={16} />
-                    <p>{loadingError}</p>
-                  </div>
-                )}
-
-                <button
-                  onClick={startSingleQuiz}
-                  disabled={!config.topic}
-                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02]"
-                >
-                  クイズを開始
-                </button>
+              <input 
+                type="range" 
+                min={1} 
+                max={5} 
+                step={1}
+                value={config.difficulty}
+                onChange={(e) => setConfig({ ...config, difficulty: Number(e.target.value) })}
+                className="w-full"
+              />
+              <div className="flex justify-between px-1">
+                <div className="w-1 h-1 bg-slate-600 rounded-full"></div>
+                <div className="w-1 h-1 bg-slate-600 rounded-full"></div>
+                <div className="w-1 h-1 bg-slate-600 rounded-full"></div>
+                <div className="w-1 h-1 bg-slate-600 rounded-full"></div>
+                <div className="w-1 h-1 bg-slate-600 rounded-full"></div>
               </div>
             </div>
 
-            <div className="bg-slate-800/30 backdrop-blur-md p-6 rounded-2xl border border-slate-700 h-fit">
-              <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
-                <RotateCcw size={20} className="text-slate-400" />
-                履歴
-              </h3>
-              <HistorySidebar 
-                history={history} 
-                onSelectTopic={(topic) => setConfig({ ...config, topic })} 
+            {/* Question Count */}
+            <div className="space-y-4">
+              <div className="flex justify-between items-end">
+                <label className="text-slate-300 text-sm font-semibold tracking-wide uppercase">問題数</label>
+                <span className="text-indigo-400 font-bold text-2xl font-heading">{config.questionCount}<span className="text-base ml-1 text-slate-500">問</span></span>
+              </div>
+              <input 
+                type="range" 
+                min={MIN_QUESTION_COUNT} 
+                max={MAX_QUESTION_COUNT} 
+                step={1}
+                value={config.questionCount}
+                onChange={(e) => setConfig({ ...config, questionCount: Number(e.target.value) })}
+                className="w-full"
               />
             </div>
-          </div>
-        )}
 
-        {/* MULTIPLAYER LOBBY */}
-        {appState === 'lobby' && (
-           <Lobby 
-             roomId={roomId || 'Loading...'}
-             players={players}
-             myId={myId}
-             isHost={players.find(p => p.id === myId)?.isHost || false}
-             config={config}
-             onConfigChange={setConfig}
-             onStart={startMultiplayerQuiz}
-             onLeave={() => window.location.reload()}
-           />
-        )}
-
-        {/* LOADING */}
-        {appState === 'loading' && (
-          <div className="text-center animate-fade-in space-y-4">
-            <div className="relative">
-              <div className="absolute inset-0 bg-indigo-500 blur-xl opacity-20 rounded-full animate-pulse"></div>
-              <Loader2 className="animate-spin text-indigo-400 relative z-10 mx-auto" size={64} />
-            </div>
-            <h2 className="text-2xl font-bold text-white">Geminiが問題を生成中...</h2>
-            <p className="text-slate-400">お題: {config.topic}</p>
-          </div>
-        )}
-
-        {/* QUIZ GAME */}
-        {appState === 'quiz' && questions.length > 0 && (
-          <div className="w-full max-w-4xl animate-fade-in flex flex-col items-center">
-            {gameMode === 'multi' && (
-              <LiveLeaderboard 
-                players={players} 
-                myId={myId} 
-                totalQuestions={questions.length} 
-              />
-            )}
-            <QuizCard
-              question={questions[currentQIndex]}
-              questionNumber={currentQIndex + 1}
-              totalQuestions={questions.length}
-              onAnswer={handleAnswer}
-              onOpenChat={() => setIsChatOpen(true)}
-            />
-          </div>
-        )}
-
-        {/* RESULT */}
-        {appState === 'result' && (
-          <div className="text-center animate-fade-in bg-slate-800/50 backdrop-blur-md p-10 rounded-3xl border border-slate-700 shadow-2xl max-w-lg w-full">
-            <div className="mb-6 inline-flex p-4 rounded-full bg-yellow-500/10 border border-yellow-500/30 text-yellow-400">
-              <Trophy size={48} />
-            </div>
-            <h2 className="text-3xl font-bold text-white mb-2">結果発表</h2>
-            <p className="text-slate-400 mb-8">{config.topic}</p>
-            
-            <div className="text-6xl font-black text-white mb-2">
-              <span className="text-indigo-400">{score}</span>
-              <span className="text-2xl text-slate-500 ml-2">/ {questions.length}</span>
-            </div>
-            
-            {gameMode === 'multi' && (
-               <div className="my-6 text-left bg-slate-900/50 p-4 rounded-xl max-h-40 overflow-y-auto">
-                 <h4 className="text-sm font-bold text-slate-400 mb-2">最終順位</h4>
-                 {players.sort((a,b) => b.score - a.score).map((p, idx) => (
-                    <div key={p.id} className="flex justify-between text-sm py-1">
-                       <span className={p.id === myId ? "text-indigo-400 font-bold" : "text-slate-300"}>
-                         {idx+1}. {p.name}
-                       </span>
-                       <span className="font-mono">{p.score}pts</span>
-                    </div>
-                 ))}
-               </div>
+            {error && (
+              <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 p-4 rounded-2xl text-sm flex items-center animate-pulse">
+                <AlertCircle className="w-5 h-5 mr-3 shrink-0" />
+                {error}
+              </div>
             )}
 
-            <div className="grid grid-cols-1 gap-4">
-              <button 
-                onClick={resetApp}
-                className="px-6 py-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-500/20 transition-colors font-bold"
-              >
-                {gameMode === 'multi' ? '退出する' : 'トップに戻る'}
-              </button>
-            </div>
+            <button 
+              onClick={() => startQuiz()}
+              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-5 rounded-2xl shadow-xl shadow-indigo-900/30 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center group/btn relative overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-1000"></div>
+              <span className="text-lg mr-2 relative z-10">クイズを生成</span>
+              <Play className="w-5 h-5 fill-current relative z-10" />
+            </button>
           </div>
-        )}
-
-      </main>
-
-      <ChatAssistant 
-        isOpen={isChatOpen} 
-        onClose={() => setIsChatOpen(false)} 
-        topic={config.topic}
-        currentQuestion={appState === 'quiz' ? questions[currentQIndex] : null}
-      />
-
-      <style>{`
-        @keyframes fade-in {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in {
-          animation: fade-in 0.5s ease-out forwards;
-        }
-      `}</style>
+        </div>
+      </div>
     </div>
   );
-};
 
-export default App;
+  return (
+    <div className="min-h-screen flex flex-col relative bg-[#0f172a] overflow-hidden font-sans">
+      
+      {/* Dynamic Background */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-indigo-600/20 rounded-full blur-[128px] animate-blob"></div>
+        <div className="absolute top-1/2 right-1/4 w-96 h-96 bg-purple-600/20 rounded-full blur-[128px] animate-blob animation-delay-2000"></div>
+        <div className="absolute bottom-0 left-1/3 w-96 h-96 bg-cyan-600/20 rounded-full blur-[128px] animate-blob animation-delay-4000"></div>
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-soft-light"></div>
+      </div>
+
+      {/* Mobile Header */}
+      <header className="absolute top-0 left-0 right-0 p-4 z-40 flex justify-between items-center md:hidden bg-gradient-to-b from-slate-900/80 to-transparent">
+        <div className="flex items-center text-white font-bold text-xl font-heading tracking-tight">
+           <BrainCircuit className="w-7 h-7 mr-2 text-indigo-500" />
+           Quiz Master
+        </div>
+        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-white p-2 bg-slate-800/50 rounded-lg backdrop-blur-md">
+          {isSidebarOpen ? <X /> : <Menu />}
+        </button>
+      </header>
+
+      <div className="flex flex-1 relative z-10 h-screen overflow-hidden">
+        
+        {/* Sidebar */}
+        <div className={`
+          fixed inset-y-0 left-0 w-80 bg-slate-900/90 border-r border-slate-800/50 backdrop-blur-xl transform transition-transform duration-300 ease-out z-30 shadow-2xl
+          md:relative md:translate-x-0
+          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        `}>
+          <div className="h-full flex flex-col">
+            <div className="p-6 md:p-8 flex items-center justify-between">
+               <div className="flex items-center">
+                 <div className="bg-indigo-600 p-2 rounded-xl mr-3 shadow-lg shadow-indigo-600/20">
+                    <BrainCircuit className="w-6 h-6 text-white" />
+                 </div>
+                 <span className="font-bold text-white text-xl font-heading tracking-tight">Quiz Master</span>
+               </div>
+               <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-slate-400 hover:text-white transition-colors">
+                 <X className="w-6 h-6" />
+               </button>
+            </div>
+            
+            <div className="px-6 pb-2">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">History</p>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto scrollbar-hide px-4 pb-4">
+              <HistorySidebar 
+                history={history} 
+                onSelectHistory={(item) => {
+                  setConfig(item.config);
+                  setIsSidebarOpen(false);
+                }} 
+              />
+            </div>
+          </div>
+        </div>
+        
+        {/* Main Content */}
+        <main className="flex-1 flex flex-col h-full overflow-y-auto relative scrollbar-hide">
+          
+          {view === 'setup' && (
+            <div className="flex-1 flex items-center justify-center p-4">
+              <SetupView />
+            </div>
+          )}
+
+          {view === 'loading' && (
+            <div className="flex-1 flex flex-col items-center justify-center p-4 relative">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl animate-pulse"></div>
+              </div>
+              <div className="relative z-10 text-center">
+                <Loader2 className="w-16 h-16 text-indigo-400 animate-spin mx-auto mb-8" />
+                <h2 className="text-3xl font-bold text-white mb-3 font-heading">Generating Quiz...</h2>
+                <p className="text-slate-400 text-lg">
+                  AIが「<span className="text-indigo-400 font-semibold">{config.topic}</span>」の<br/>
+                  難易度<span className="text-indigo-400 font-semibold">{DIFFICULTY_LABELS[config.difficulty].split(' ')[0]}</span>の問題を作成中
+                </p>
+              </div>
+            </div>
+          )}
+
+          {view === 'quiz' && (
+            <QuizGame 
+              questions={questions} 
+              config={config} 
+              onFinish={handleFinish} 
+            />
+          )}
+
+          {view === 'result' && (
+            <div className="flex-1 flex items-center justify-center p-4 animate-fade-in">
+              <div className="bg-slate-900/60 backdrop-blur-xl rounded-[2rem] p-8 md:p-12 border border-slate-700/50 shadow-2xl text-center max-w-lg w-full relative overflow-hidden">
+                {/* Result Confetti/Background */}
+                <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/10 to-transparent pointer-events-none"></div>
+
+                <div className="relative z-10">
+                  <div className="mb-8">
+                    <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-slate-800 border-4 border-slate-700 mb-6 relative">
+                      <svg className="absolute inset-0 w-full h-full -rotate-90 text-indigo-600" viewBox="0 0 36 36">
+                         <path
+                            className="text-slate-700"
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                          />
+                          <path
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            strokeDasharray={`${(score / questions.length) * 100}, 100`}
+                          />
+                      </svg>
+                      <div className="flex flex-col items-center">
+                        <span className="text-3xl font-black text-white leading-none">{score}</span>
+                        <span className="text-xs text-slate-400 font-medium">/{questions.length}</span>
+                      </div>
+                    </div>
+                    <h2 className="text-3xl font-bold text-white font-heading">Result</h2>
+                    <p className="text-indigo-400 mt-2 font-medium text-lg border-b border-indigo-500/20 inline-block px-4 pb-1">
+                      {config.topic}
+                    </p>
+                  </div>
+
+                  <p className="text-slate-300 mb-10 text-lg leading-relaxed">
+                    {score === questions.length ? '完璧です！AIも驚く知識量ですね！🏆' : 
+                     score >= questions.length / 2 ? '素晴らしい！なかなかの博識ぶりです。✨' : 
+                     'お疲れ様でした！新しい知識が身につきましたね。🌱'}
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <button 
+                      onClick={() => startQuiz()} 
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-6 rounded-2xl transition-all hover:scale-[1.02] shadow-lg shadow-indigo-900/30 flex items-center justify-center"
+                    >
+                      <RotateCcw className="w-5 h-5 mr-2" />
+                      再挑戦
+                    </button>
+                    <button 
+                      onClick={handleReset} 
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-4 px-6 rounded-2xl transition-all hover:scale-[1.02] border border-slate-700"
+                    >
+                      設定へ
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+    </div>
+  );
+}

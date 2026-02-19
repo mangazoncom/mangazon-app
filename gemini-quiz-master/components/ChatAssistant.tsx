@@ -1,87 +1,136 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage } from '../types';
+import { Send, Bot, X, MessageCircleQuestion, Sparkles } from 'lucide-react';
+import { ChatMessage, QuizQuestion } from '../types';
 import { sendChatMessage } from '../services/geminiService';
-import { Send, X, Bot, User, Loader2 } from 'lucide-react';
 
 interface ChatAssistantProps {
+  currentQuestion: QuizQuestion;
   isOpen: boolean;
-  onClose: () => void;
-  topic: string;
-  currentQuestion: any; // Using any to avoid circular deps if needed, but imported Question is better
+  onToggle: () => void;
 }
 
-const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose, topic, currentQuestion }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+export const ChatAssistant: React.FC<ChatAssistantProps> = ({ currentQuestion, isOpen, onToggle }) => {
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    { role: 'model', text: '何かヒントが必要ですか？この問題について何でも聞いてください！' }
+  ]);
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Reset chat when question changes
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages]);
+    setMessages([{ role: 'model', text: '何かヒントが必要ですか？この問題について何でも聞いてください！' }]);
+  }, [currentQuestion]);
 
-  // Initial greeting
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   useEffect(() => {
-    if (isOpen && messages.length === 0) {
-      setMessages([
-        { role: 'model', text: `「${topic}」のクイズですね！何か分からないことがあれば聞いてください。ヒントも出せますよ。` }
-      ]);
-    }
-  }, [isOpen, topic]);
+    scrollToBottom();
+  }, [messages, isOpen]);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isTyping) return;
 
-    const userMsg: ChatMessage = { role: 'user', text: input };
-    setMessages(prev => [...prev, userMsg]);
+    const userMsg = input.trim();
     setInput('');
-    setIsLoading(true);
+    setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+    setIsTyping(true);
+
+    // Convert internal message format to Gemini history format
+    const historyForApi = messages.map(m => ({
+      role: m.role,
+      parts: [{ text: m.text }]
+    }));
 
     try {
-      const responseText = await sendChatMessage([...messages, userMsg], currentQuestion, topic);
+      const responseText = await sendChatMessage(userMsg, currentQuestion, historyForApi);
       setMessages(prev => [...prev, { role: 'model', text: responseText }]);
     } catch (error) {
-      setMessages(prev => [...prev, { role: 'model', text: "すみません、エラーが発生しました。もう一度試してください。" }]);
+      setMessages(prev => [...prev, { role: 'model', text: 'エラーが発生しました。もう一度お試しください。' }]);
     } finally {
-      setIsLoading(false);
+      setIsTyping(false);
     }
   };
 
-  if (!isOpen) return null;
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  if (!isOpen) {
+    return (
+      <button
+        onClick={onToggle}
+        className="fixed bottom-6 right-6 group flex items-center justify-center p-1 rounded-full hover:scale-105 transition-all duration-300 z-50"
+      >
+        <div className="absolute inset-0 bg-indigo-500 rounded-full animate-ping opacity-20 group-hover:opacity-40"></div>
+        <div className="bg-indigo-600 hover:bg-indigo-500 text-white p-4 rounded-full shadow-lg shadow-indigo-900/50 relative">
+          <MessageCircleQuestion className="w-7 h-7" />
+          {/* Notification badge simulation if wanted */}
+          <span className="absolute top-0 right-0 w-3 h-3 bg-rose-500 border-2 border-slate-900 rounded-full"></span>
+        </div>
+      </button>
+    );
+  }
 
   return (
-    <div className="fixed inset-y-0 right-0 w-full sm:w-96 bg-slate-900 border-l border-slate-700 shadow-2xl z-50 flex flex-col transform transition-transform duration-300">
+    <div className="fixed bottom-6 right-6 w-[400px] max-w-[90vw] h-[600px] max-h-[80vh] bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 rounded-3xl shadow-2xl flex flex-col overflow-hidden z-50 animate-fade-in-up origin-bottom-right">
       {/* Header */}
-      <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900/50 backdrop-blur-sm">
-        <div className="flex items-center gap-2 text-indigo-400">
-          <Bot size={20} />
-          <h3 className="font-bold">Gemini Assistant</h3>
+      <div className="bg-gradient-to-r from-indigo-900/50 to-slate-900/50 p-5 border-b border-slate-700/50 flex justify-between items-center backdrop-blur-md">
+        <div className="flex items-center space-x-3">
+          <div className="bg-indigo-500 p-2 rounded-xl shadow-lg shadow-indigo-500/30">
+            <Bot className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h3 className="font-bold text-slate-100 text-sm">AI ヒント</h3>
+            <div className="flex items-center text-xs text-indigo-300">
+              <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full mr-1.5 animate-pulse"></span>
+              Online
+            </div>
+          </div>
         </div>
-        <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-800 transition-colors">
-          <X size={20} />
+        <button 
+          onClick={onToggle}
+          className="bg-slate-800/50 hover:bg-slate-700 p-2 rounded-full text-slate-400 hover:text-white transition-colors"
+        >
+          <X className="w-4 h-4" />
         </button>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-5 space-y-6 bg-slate-900/50 scrollbar-hide">
         {messages.map((msg, idx) => (
-          <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`
-              max-w-[85%] rounded-2xl p-3 text-sm leading-relaxed
-              ${msg.role === 'user' 
-                ? 'bg-indigo-600 text-white rounded-br-none' 
-                : 'bg-slate-800 text-slate-200 rounded-bl-none border border-slate-700'}
-            `}>
+          <div
+            key={idx}
+            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          >
+            <div
+              className={`max-w-[85%] rounded-2xl px-5 py-3.5 text-sm leading-relaxed shadow-sm ${
+                msg.role === 'user'
+                  ? 'bg-indigo-600 text-white rounded-br-sm shadow-indigo-900/20'
+                  : 'bg-slate-800 text-slate-200 rounded-bl-sm border border-slate-700/50'
+              }`}
+            >
+              {msg.role === 'model' && idx === 0 && (
+                <div className="flex items-center mb-2 text-indigo-400 text-xs font-bold uppercase tracking-wider">
+                  <Sparkles className="w-3 h-3 mr-1" />
+                  Gemini AI
+                </div>
+              )}
               {msg.text}
             </div>
           </div>
         ))}
-        {isLoading && (
+        {isTyping && (
           <div className="flex justify-start">
-            <div className="bg-slate-800 rounded-2xl p-3 rounded-bl-none border border-slate-700">
-              <Loader2 className="animate-spin text-indigo-400" size={16} />
+            <div className="bg-slate-800 rounded-2xl rounded-bl-sm px-5 py-4 flex space-x-1.5 border border-slate-700/50">
+              <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+              <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+              <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
             </div>
           </div>
         )}
@@ -89,27 +138,25 @@ const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose, topic, c
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t border-slate-700 bg-slate-900">
-        <div className="flex gap-2">
+      <div className="p-4 bg-slate-900 border-t border-slate-800">
+        <div className="flex items-end space-x-2 bg-slate-800/50 border border-slate-700 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500/50 transition-all">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="質問やヒントを入力..."
-            className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 placeholder-slate-500"
+            onKeyDown={handleKeyDown}
+            placeholder="AIに質問する..."
+            className="flex-1 bg-transparent text-white placeholder-slate-500 px-3 py-2.5 focus:outline-none text-sm"
           />
-          <button 
+          <button
             onClick={handleSend}
-            disabled={isLoading || !input.trim()}
-            className="bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            disabled={!input.trim() || isTyping}
+            className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white p-2.5 rounded-xl transition-all shadow-lg shadow-indigo-900/20"
           >
-            <Send size={18} />
+            <Send className="w-4 h-4" />
           </button>
         </div>
       </div>
     </div>
   );
 };
-
-export default ChatAssistant;
