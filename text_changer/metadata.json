@@ -1,0 +1,6 @@
+{
+  "name": "半角全角一括変換ツール",
+  "description": "テキストボックスに入力された文字を、一括で半角・全角に相互変換できる便利なWebアプリケーションです。英数字、カタカナ、スペース、記号の個別指定や、大文字・小文字、ひらがな・カタカナ変換など高度なオプションも備えています。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
